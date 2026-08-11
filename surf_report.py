@@ -498,10 +498,14 @@ def send_email(html, subject):
     user = os.environ["SMTP_USER"]
     password = os.environ["SMTP_PASSWORD"]
     to = os.environ["MAIL_TO"]
+    # Chez Gmail, identifiant de connexion et adresse d'expedition sont
+    # confondus. Chez un relais comme Brevo, l'identifiant est technique
+    # (7xxxxx@smtp-brevo.com) et l'expediteur doit etre une adresse verifiee.
+    sender = os.environ.get("MAIL_FROM", user)
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"] = user
+    msg["From"] = sender
     msg["To"] = to
     msg.attach(MIMEText(html, "html", "utf-8"))
 
