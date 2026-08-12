@@ -23,6 +23,7 @@ jobs:
         with:
           python-version: "3.12"
 
+      # Interroge Open-Meteo une seule fois et met les donnees en cache.
       - name: Generer le report
         env:
           SITE_URL: ${{ vars.SITE_URL }}
@@ -36,6 +37,7 @@ jobs:
       - id: deploy
         uses: actions/deploy-pages@v4
 
+      # Relit le cache : pas de second appel reseau, page et mail identiques.
       - name: Envoyer le mail
         env:
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
@@ -43,6 +45,7 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           MAIL_TO: ${{ secrets.MAIL_TO }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
           SITE_URL: ${{ vars.SITE_URL }}
           SITE_NAME: ${{ vars.SITE_NAME }}
         run: python surf_report.py --out site
