@@ -12,6 +12,7 @@ Usage :
 import os
 import sys
 import json
+import time
 import smtplib
 import argparse
 from datetime import datetime, timedelta
@@ -50,10 +51,24 @@ MIN_SCORE_TO_MENTION = 4.0  # en dessous, on ne recommande pas le creneau
 # RECUPERATION DES DONNEES
 # ---------------------------------------------------------------------------
 
-def _get_json(url, params):
+def _get_json(url, params, attempts=4):
+    """
+    Appel reseau avec reessais. Open-Meteo repond parfois par un timeout
+    passager ; sans reessai, tout le report echoue pour une seconde de trop.
+    """
     full = url + "?" + urlencode(params)
-    with urlopen(full, timeout=30) as resp:
-        return json.loads(resp.read().decode())
+    last = None
+    for i in range(attempts):
+        try:
+            with urlopen(full, timeout=45) as resp:
+                return json.loads(resp.read().decode())
+        except Exception as e:
+            last = e
+            if i < attempts - 1:
+                wait = 3 * (i + 1)
+                print(f"  echec ({e}), nouvelle tentative dans {wait}s")
+                time.sleep(wait)
+    raise last
 
 
 def fetch_spot(spot):
@@ -558,9 +573,31 @@ def main():
     ap.add_argument("--demo", action="store_true", help="donnees factices")
     ap.add_argument("--out", default="site",
                     help="dossier de sortie pour la page web (defaut: site)")
+    ap.add_argument("--cache", default="report-cache.json",
+                    help="fichier de reprise des donnees")
     args = ap.parse_args()
 
-    report = demo_report() if args.demo else build_report()
+    # Les donnees ne sont interrogees qu'une fois. La seconde execution
+    # (celle qui envoie le mail) relit le cache : moins d'appels reseau,
+    # et surtout page et mail strictement identiques.
+    report = None
+    if not args.demo and os.path.exists(args.cache):
+        try:
+            with open(args.cache, encoding="utf-8") as f:
+                cached = json.load(f)
+            age = time.time() - cached.get("ts", 0)
+            if age < 3600:
+                report = cached["report"]
+                print(f"Donnees relues du cache ({age:.0f}s)")
+        except Exception as e:
+            print(f"Cache illisible ({e}), on rappelle l'API")
+
+    if report is None:
+        report = demo_report() if args.demo else build_report()
+        if not args.demo:
+            with open(args.cache, "w", encoding="utf-8") as f:
+                json.dump({"ts": time.time(), "report": report}, f)
+
     best = best_overall(report)
 
     # 1. La page web : c'est elle qui porte le design.
