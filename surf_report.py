@@ -497,7 +497,11 @@ def send_email(html, subject):
     port = int(os.environ.get("SMTP_PORT", 587))
     user = os.environ["SMTP_USER"]
     password = os.environ["SMTP_PASSWORD"]
-    to = os.environ["MAIL_TO"]
+    # MAIL_TO accepte plusieurs adresses separees par des virgules.
+    # L'en-tete To listera tout le monde ; chacun voit les autres destinataires.
+    recipients = [a.strip() for a in os.environ["MAIL_TO"].split(",") if a.strip()]
+    if not recipients:
+        raise ValueError("MAIL_TO est vide")
     # Chez Gmail, identifiant de connexion et adresse d'expedition sont
     # confondus. Chez un relais comme Brevo, l'identifiant est technique
     # (7xxxxx@smtp-brevo.com) et l'expediteur doit etre une adresse verifiee.
@@ -506,14 +510,14 @@ def send_email(html, subject):
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = sender
-    msg["To"] = to
+    msg["To"] = ", ".join(recipients)
     msg.attach(MIMEText(html, "html", "utf-8"))
 
     with smtplib.SMTP(host, port) as server:
         server.starttls()
         server.login(user, password)
-        server.send_message(msg)
-    print(f"Email envoye a {to}")
+        server.send_message(msg, to_addrs=recipients)
+    print(f"Email envoye a {len(recipients)} destinataire(s) : {', '.join(recipients)}")
 
 
 # ---------------------------------------------------------------------------
